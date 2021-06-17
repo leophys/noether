@@ -3,8 +3,8 @@ defmodule Noether.Either do
   This module hosts several utility functions to work with `{:ok, _} | {:error, _}` values.
   These type of values will be then called `Either`.
   """
-  @type either :: {:ok, any()} | {:error, any()}
-  @type fun1 :: (any() -> any())
+  @type either(ok_type, err_type) :: {:ok, ok_type} | {:error, err_type}
+  @type fun1(a, b) :: (a -> b)
 
   @doc """
   Given an `{:ok, value}` and a function, it applies the function on the `value` returning `{:ok, f.(value)}`.
@@ -18,7 +18,10 @@ defmodule Noether.Either do
       iex> map({:error, "Value not found"}, &Kernel.abs/1)
       {:error, "Value not found"}
   """
-  @spec map(either(), fun1()) :: either()
+  @spec map(either(ok_1, err_t), (ok_1 -> ok_2)) :: either(ok_2, err_t)
+        when ok_1: any,
+             ok_2: any,
+             err_t: any
   def map({:ok, a}, f) when is_function(f, 1), do: {:ok, f.(a)}
   def map(a = {:error, _}, _), do: a
 
@@ -34,7 +37,7 @@ defmodule Noether.Either do
       iex> try("nan", &String.to_integer/1)
       {:error, %ArgumentError{message: "argument error"}}
   """
-  @spec try(any(), fun1()) :: either()
+  @spec try(a, (a -> b)) :: either(b, err_t) when a: any, b: any, err_t: any
   def try(value, f) when is_function(f, 1) do
     try do
       {:ok, f.(value)}
@@ -58,7 +61,7 @@ defmodule Noether.Either do
       iex> join({:error, "Value not found"})
       {:error, "Value not found"}
   """
-  @spec join(either()) :: either()
+  @spec join(either(ok_t, err_t)) :: either(ok_t, err_t) when ok_t: any, err_t: any
   def join({:ok, {:ok, a}}), do: {:ok, a}
   def join({:ok, {:error, a}}), do: {:error, a}
   def join(a = {:error, _}), do: a
@@ -77,7 +80,7 @@ defmodule Noether.Either do
       iex> flatten({:error, "Value not found"})
       {:error, "Value not found"}
   """
-  @spec flatten(either()) :: either()
+  @spec flatten(either(ok_t, err_t)) :: either(ok_t, err_t) when ok_t: any, err_t: any
   defdelegate flatten(either), to: __MODULE__, as: :join
 
   @doc """
@@ -95,7 +98,8 @@ defmodule Noether.Either do
       iex> bind({:error, 1}, fn _ -> {:ok, 45} end)
       {:error, 1}
   """
-  @spec bind(either(), fun1()) :: either()
+  @spec bind(either(ok_1, err_t), (ok_1 -> ok_2)) :: either(ok_2, err_t)
+        when ok_1: any, ok_2: any, err_t: any
   def bind({:ok, a}, f) when is_function(f, 1), do: f.(a)
   def bind(a = {:error, _}, _), do: a
 
@@ -113,7 +117,8 @@ defmodule Noether.Either do
       iex> flat_map({:error, 1}, fn _ -> {:ok, 45} end)
       {:error, 1}
   """
-  @spec flat_map(either(), fun1()) :: either()
+  @spec flat_map(either(ok_1, err_t), fun1(ok_2, err_t)) :: either(ok_2, err_t)
+        when ok_1: any, ok_2: any, err_t: any
   defdelegate flat_map(either, f), to: __MODULE__, as: :bind
 
   @doc """
@@ -130,7 +135,8 @@ defmodule Noether.Either do
       iex> wrap(3)
       {:ok, 3}
   """
-  @spec wrap(any()) :: either()
+  @spec wrap(ok_1 | either(ok_2, err_t)) :: either(ok_1 | ok_2, err_t)
+        when ok_1: any, ok_2: any, err_t: any
   def wrap(a = {:ok, _}), do: a
   def wrap(a = {:error, _}), do: a
   def wrap(a), do: {:ok, a}
@@ -149,7 +155,8 @@ defmodule Noether.Either do
       iex> wrap_err(3)
       {:error, 3}
   """
-  @spec wrap_err(any()) :: either()
+  @spec wrap_err(err_1 | either(ok_t, err_2)) :: either(ok_t, err_1 | err_2)
+        when ok_t: any, err_1: any, err_2: any
   def wrap_err(a = {:ok, _}), do: a
   def wrap_err(a = {:error, _}), do: a
   def wrap_err(a), do: {:error, a}
@@ -171,7 +178,9 @@ defmodule Noether.Either do
       iex> unwrap(2, :default_value)
       :default_value
   """
-  @spec unwrap(any()) :: any()
+  @spec unwrap(either(ok_t, err_t) | a) :: ok_t | nil when ok_t: any, err_t: any, a: any
+  @spec unwrap(either(ok_t, err_t) | a, default_t) :: ok_t | default_t
+        when ok_t: any, err_t: any, a: any, default_t: any
   def unwrap(a, b \\ nil)
   def unwrap({:ok, a}, _), do: a
   def unwrap(_, default), do: default
@@ -221,7 +230,8 @@ defmodule Noether.Either do
       iex> map_error({:error, 1}, &(&1 + 1))
       {:error, 2}
   """
-  @spec map_error(either(), fun1()) :: either()
+  @spec map_error(either(ok_t, err_1), (err_1 -> err_2)) :: either(ok_t, err_2)
+        when ok_t: any, err_1: any, err_2: any
   def map_error(a = {:ok, _}, _), do: a
   def map_error({:error, a}, f) when is_function(f, 1), do: {:error, f.(a)}
 
@@ -238,7 +248,8 @@ defmodule Noether.Either do
       iex> map_all(["23:50:61", "23:50:07.123Z"], &Time.from_iso8601/1)
       {:error, :invalid_time}
   """
-  @spec map_all([any()], (any() -> either())) :: {:ok, [any()]} | {:error, any()}
+  @spec map_all([a], (a -> either(ok_t, err_t))) :: {:ok, [ok_t]} | {:error, err_t}
+        when a: any, ok_t: any, err_t: any
   def map_all(values, f) when is_function(f, 1) do
     values
     |> Enum.reduce_while(
@@ -264,7 +275,8 @@ defmodule Noether.Either do
       iex> either({:error, 1}, &(&1 + 1), &(&1 + 2))
       {:error, 3}
   """
-  @spec either(either(), fun1(), fun1()) :: either()
+  @spec either(either(ok_1, err_1), (ok_1 -> ok_2), (err_1 -> err_2)) :: either(ok_2, err_2)
+        when ok_1: any, ok_2: any, err_1: any, err_2: any
   def either(a = {:ok, _}, f, _) when is_function(f, 1), do: map(a, f)
   def either({:error, a}, _, g) when is_function(g, 1), do: {:error, g.(a)}
 
@@ -279,7 +291,8 @@ defmodule Noether.Either do
       iex> cat_either([{:ok, 1}, {:error, 2}, {:ok, 3}], &(&1 + 1))
       [2, 4]
   """
-  @spec cat_either([either()], fun1()) :: [any()]
+  @spec cat_either([either(ok_1, err_t)], (ok_1 -> ok_2)) :: [ok_2]
+        when ok_1: any, ok_2: any, err_t: any
   def cat_either(a, f) when is_function(f, 1) do
     a
     |> Enum.reduce(
@@ -306,7 +319,9 @@ defmodule Noether.Either do
       iex> choose(0, fn _ -> {:error, 1} end, fn _ -> {:error, 2} end)
       {:error, 2}
   """
-  @spec choose(either(), fun1(), fun1()) :: either()
+  @spec choose(either(ok_1, err_1), (ok_1 -> either(ok_2, err_2)), (ok_1 -> either(ok_3, err_3))) ::
+          either(ok_2 | ok_3, err_2 | err_3)
+        when ok_1: any, ok_2: any, ok_3: any, err_1: any, err_2: any, err_3: any
   def choose(a, f, g) when is_function(f, 1) and is_function(g, 1) do
     b = f.(a)
 
